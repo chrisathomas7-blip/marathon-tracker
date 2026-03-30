@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Marathon">
+<title>Chicago Marathon Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --surface: #141414;
+    --surface2: #1e1e1e;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0f0f0;
+    --muted: #888;
+    --accent: #C8F55A;
+    --accent-dim: rgba(200,245,90,0.12);
+    --accent-text: #1a2800;
+    --red: #ff6b6b;
+    --blue: #5ab4ff;
+    --font: 'DM Sans', sans-serif;
+    --mono: 'DM Mono', monospace;
+    --radius: 14px;
+    --tab-h: 60px;
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); overflow: hidden; }
+
+  /* LAYOUT */
+  .shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+  .header { padding: 52px 20px 16px; background: var(--bg); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; }
+  .header-label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-family: var(--mono); margin-bottom: 4px; }
+  .header-title { font-size: 24px; font-weight: 600; letter-spacing: -0.02em; }
+  .header-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .days-pill { background: var(--accent-dim); border: 1px solid rgba(200,245,90,0.3); border-radius: 99px; padding: 6px 12px; text-align: center; }
+  .days-num { font-size: 22px; font-weight: 600; color: var(--accent); font-family: var(--mono); line-height: 1; }
+  .days-lbl { font-size: 10px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 16px 16px calc(var(--tab-h) + var(--safe-bottom) + 16px); }
+
+  /* TABS */
+  .tabs { position: fixed; bottom: 0; left: 0; right: 0; height: calc(var(--tab-h) + var(--safe-bottom)); padding-bottom: var(--safe-bottom); background: rgba(10,10,10,0.95); backdrop-filter: blur(20px); border-top: 1px solid var(--border); display: flex; z-index: 100; }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer; color: var(--muted); font-size: 11px; font-weight: 500; transition: color 0.2s; }
+  .tab.active { color: var(--accent); }
+  .tab-icon { font-size: 20px; line-height: 1; }
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* CARDS */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+  .card-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-family: var(--mono); margin-bottom: 10px; }
+
+  /* METRICS */
+  .metric-row { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-bottom: 12px; }
+  .metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 12px; }
+  .metric-val { font-size: 26px; font-weight: 600; font-family: var(--mono); color: var(--text); letter-spacing: -0.02em; }
+  .metric-lbl { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* PROGRESS */
+  .prog-bar-bg { height: 6px; background: var(--surface2); border-radius: 99px; overflow: hidden; margin: 8px 0 6px; }
+  .prog-bar-fill { height: 100%; background: var(--accent); border-radius: 99px; transition: width 0.5s ease; }
+  .prog-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); font-family: var(--mono); }
+
+  /* THIS WEEK */
+  .week-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; position: relative; overflow: hidden; }
+  .week-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent); }
+  .week-mi-big { font-size: 42px; font-weight: 600; font-family: var(--mono); color: var(--accent); letter-spacing: -0.03em; line-height: 1; }
+  .week-mi-unit { font-size: 16px; color: var(--muted); margin-left: 4px; }
+  .week-sessions { margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .session-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .session-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  .session-dot.muted { background: var(--muted); }
+
+  /* LOG FORM */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-family: var(--mono); margin-bottom: 6px; }
+  .field input, .field select { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 14px; font-size: 16px; color: var(--text); font-family: var(--font); outline: none; -webkit-appearance: none; }
+  .field input:focus { border-color: var(--accent); }
+  .field input[readonly] { color: var(--muted); font-family: var(--mono); font-size: 14px; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .feel-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; }
+  .feel-btn { padding: 10px 4px; border: 1px solid var(--border2); border-radius: 10px; background: var(--surface2); cursor: pointer; font-size: 13px; color: var(--muted); text-align: center; font-family: var(--font); transition: all 0.15s; }
+  .feel-btn.selected { border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+  .save-btn { width: 100%; padding: 16px; background: var(--accent); border: none; border-radius: 12px; font-size: 16px; font-weight: 600; color: var(--accent-text); font-family: var(--font); cursor: pointer; margin-top: 4px; transition: opacity 0.15s; }
+  .save-btn:active { opacity: 0.85; }
+  .log-msg { text-align: center; font-size: 13px; color: var(--accent); margin-top: 10px; min-height: 20px; font-family: var(--mono); }
+
+  /* PLAN LIST */
+  .phase-header { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); font-family: var(--mono); padding: 14px 0 6px; }
+  .week-row { display: grid; grid-template-columns: 36px 54px 40px 1fr; gap: 8px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .week-row:last-child { border-bottom: none; }
+  .wk-num { font-family: var(--mono); font-size: 11px; color: var(--muted); padding-top: 1px; }
+  .wk-date { color: var(--muted); font-size: 12px; }
+  .wk-mi { font-family: var(--mono); font-weight: 500; color: var(--accent); font-size: 13px; }
+  .wk-desc { color: #bbb; line-height: 1.5; }
+  .week-row.current-week { background: var(--accent-dim); margin: 0 -16px; padding: 10px 16px; }
+  .week-row.current-week .wk-desc { color: var(--text); }
+
+  /* HISTORY */
+  .run-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .run-item:last-child { border-bottom: none; }
+  .run-dist { font-size: 18px; font-weight: 600; font-family: var(--mono); color: var(--text); }
+  .run-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .run-right { text-align: right; }
+  .run-date { font-size: 12px; color: var(--muted); font-family: var(--mono); }
+  .feel-tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--surface2); color: var(--muted); margin-top: 4px; }
+  .feel-tag.Great { background: rgba(200,245,90,0.15); color: var(--accent); }
+  .feel-tag.Good { background: rgba(90,180,255,0.12); color: var(--blue); }
+  .feel-tag.Tough { background: rgba(255,107,107,0.12); color: var(--red); }
+
+  .empty-state { text-align: center; padding: 3rem 1rem; color: var(--muted); font-size: 14px; }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* CHART */
+  .chart-wrap { position: relative; width: 100%; }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="header-label">Chicago Marathon 2026</div>
+        <div class="header-title">Training Tracker</div>
+        <div class="header-sub">Goal: Sub-3:00 &nbsp;·&nbsp; Oct 11, 2026</div>
+      </div>
+      <div class="days-pill">
+        <div class="days-num" id="h-days">—</div>
+        <div class="days-lbl">days left</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="metric-row">
+        <div class="metric-card"><div class="metric-val" id="m-miles">0.0</div><div class="metric-lbl">Miles</div></div>
+        <div class="metric-card"><div class="metric-val" id="m-runs">0</div><div class="metric-lbl">Runs</div></div>
+        <div class="metric-card"><div class="metric-val" id="m-week">W1</div><div class="metric-lbl">This week</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Marathon progress</div>
+        <div class="prog-bar-bg"><div class="prog-bar-fill" id="prog-fill" style="width:0%"></div></div>
+        <div class="prog-row"><span id="prog-label">0.0 / 26.2 mi</span><span id="prog-pct">0%</span></div>
+      </div>
+
+      <div id="this-week-card" class="week-card">
+        <div class="card-label" id="tw-label">This week</div>
+        <div><span class="week-mi-big" id="tw-miles">—</span><span class="week-mi-unit">mi planned</span></div>
+        <div class="week-sessions" id="tw-sessions"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Planned weekly mileage</div>
+        <div class="chart-wrap" style="height:140px;"><canvas id="planChart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">Your runs</div>
+        <div id="run-chart-wrap" class="chart-wrap" style="height:120px;display:none;"><canvas id="runChart"></canvas></div>
+        <div id="run-chart-empty" class="empty-state" style="padding:1rem 0;"><div style="color:var(--muted);font-size:13px;">Log your first run to see your chart</div></div>
+      </div>
+    </div>
+
+    <!-- LOG -->
+    <div id="page-log" class="page">
+      <div class="card">
+        <div class="card-label">Log a run</div>
+        <div class="field"><label>Date</label><input type="date" id="run-date"></div>
+        <div class="two-col">
+          <div class="field"><label>Distance (mi)</label><input type="number" id="run-dist" placeholder="0.0" step="0.1" min="0"></div>
+          <div class="field"><label>Duration (min)</label><input type="number" id="run-time" placeholder="0" min="0"></div>
+        </div>
+        <div class="field"><label>Pace (auto)</label><input type="text" id="run-pace" readonly placeholder="—"></div>
+        <div class="field">
+          <label>How did it feel?</label>
+          <div class="feel-grid">
+            <div class="feel-btn" onclick="selectFeel(this,'Great')">Great</div>
+            <div class="feel-btn" onclick="selectFeel(this,'Good')">Good</div>
+            <div class="feel-btn" onclick="selectFeel(this,'OK')">OK</div>
+            <div class="feel-btn" onclick="selectFeel(this,'Tough')">Tough</div>
+          </div>
+        </div>
+        <button class="save-btn" onclick="logRun()">Save run</button>
+        <div class="log-msg" id="log-msg"></div>
+      </div>
+    </div>
+
+    <!-- PLAN -->
+    <div id="page-plan" class="page">
+      <div class="card" style="padding: 0 16px;">
+        <div id="plan-list"></div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="page-history" class="page">
+      <div class="card" id="history-list">
+        <div class="empty-state"><div class="empty-icon">🏃</div><div>No runs logged yet</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('dashboard')"><div class="tab-icon">📊</div><div>Dashboard</div></div>
+    <div class="tab" onclick="switchTab('log')"><div class="tab-icon">➕</div><div>Log run</div></div>
+    <div class="tab" onclick="switchTab('plan')"><div class="tab-icon">📋</div><div>Plan</div></div>
+    <div class="tab" onclick="switchTab('history')"><div class="tab-icon">📅</div><div>History</div></div>
+  </div>
+</div>
+
+<script>
+const PLAN = [
+  {phase:'Base Building – 10 Weeks'},
+  {wk:'W1',date:'Mar 29',mi:33,long:'16mi Easy ~9:00/mi',quality:'5mi Tempo @ ~7:45/mi',easy:'8mi Easy · 4mi Easy + strides'},
+  {wk:'W2',date:'Apr 5',mi:35,long:'16mi Easy ~9:00/mi',quality:'6mi Tempo @ ~7:40/mi',easy:'9mi Easy · 4mi Easy + strides'},
+  {wk:'W3',date:'Apr 12',mi:35,long:'16mi Easy ~9:10/mi',quality:'8×0.5mi @ 6:30 pace',easy:'9mi Easy · 4mi Easy + strides'},
+  {wk:'W4',date:'Apr 19',mi:31,long:'14mi Easy – cutback',quality:'5mi Easy – cutback',easy:'8mi Easy · 4mi Easy'},
+  {wk:'W5',date:'Apr 26',mi:38,long:'16mi Easy ~9:00/mi',quality:'7mi Tempo @ ~7:35/mi',easy:'10mi Easy · 5mi Easy + strides'},
+  {wk:'W6',date:'May 3',mi:40,long:'18mi Easy ~9:00/mi',quality:'10×0.25mi @ 6:15 pace',easy:'10mi Easy · 5mi Easy + strides'},
+  {wk:'W7',date:'May 10',mi:41,long:'18mi Easy ~9:00/mi',quality:'8mi Tempo @ ~7:30/mi',easy:'11mi Easy · 5mi Easy + strides'},
+  {wk:'W8',date:'May 17',mi:34,long:'14mi Easy – cutback',quality:'5mi Easy – cutback',easy:'8mi Easy · 4mi Easy'},
+  {wk:'W9',date:'May 24',mi:44,long:'18mi Easy ~8:55/mi',quality:'9mi Tempo @ ~7:25/mi',easy:'12mi Easy · 6mi Easy + strides'},
+  {wk:'W10',date:'May 31',mi:46,long:'20mi Easy ~8:55/mi',quality:'6×1mi @ 6:45 pace',easy:'12mi Easy · 6mi Easy + strides'},
+  {phase:'Marathon Prep – 18 Weeks'},
+  {wk:'W11',date:'Jun 7',mi:48,long:'20mi Easy ~8:50/mi',quality:'10mi Tempo @ 7:20/mi',easy:'12mi Easy · 6mi Easy + strides'},
+  {wk:'W12',date:'Jun 14',mi:50,long:'20mi w/ 4mi @ 6:52 MGP',quality:'6×1mi @ 6:40 pace',easy:'12mi Easy · 6mi Easy + strides'},
+  {wk:'W13',date:'Jun 21',mi:40,long:'16mi Easy – cutback',quality:'6mi Easy – cutback',easy:'10mi Easy · 4mi Easy'},
+  {wk:'W14',date:'Jun 28',mi:52,long:'20mi w/ 6mi @ 6:52 MGP',quality:'10mi Tempo @ 7:15/mi',easy:'13mi Easy · 7mi Easy + strides'},
+  {wk:'W15',date:'Jul 5',mi:54,long:'22mi w/ 6mi @ 6:52 MGP',quality:'8×0.5mi @ 6:15 pace',easy:'13mi Easy · 7mi Easy + strides'},
+  {wk:'W16',date:'Jul 12',mi:55,long:'22mi w/ 8mi @ 6:52 MGP',quality:'11mi Tempo @ 7:10/mi',easy:'14mi Easy · 7mi Easy + strides'},
+  {wk:'W17',date:'Jul 19',mi:44,long:'18mi Easy – cutback',quality:'6mi Easy – cutback',easy:'10mi Easy · 5mi Easy'},
+  {wk:'W18',date:'Jul 26',mi:55,long:'22mi w/ 10mi @ 6:52 MGP',quality:'6×1mi @ 6:35 pace',easy:'14mi Easy · 7mi Easy + strides'},
+  {wk:'W19',date:'Aug 2',mi:55,long:'20mi w/ 12mi @ 6:52 MGP',quality:'12mi Tempo @ 7:05/mi',easy:'14mi Easy · 8mi Easy + strides'},
+  {wk:'W20',date:'Aug 9',mi:48,long:'22mi w/ 8mi @ 6:52 MGP',quality:'8×0.5mi @ 6:10 pace',easy:'12mi Easy · 6mi Easy + strides'},
+  {wk:'W21',date:'Aug 16',mi:55,long:'22mi w/ 14mi @ 6:52 MGP',quality:'10×1mi @ 6:30 pace',easy:'14mi Easy · 8mi Easy + strides'},
+  {wk:'W22',date:'Aug 23',mi:55,long:'20mi w/ last 10mi @ 6:45',quality:'13mi Tempo @ 7:00/mi',easy:'14mi Easy · 8mi Easy + strides'},
+  {wk:'W23',date:'Aug 30',mi:45,long:'18mi Easy – cutback',quality:'6mi Easy – cutback',easy:'11mi Easy · 5mi Easy'},
+  {wk:'W24',date:'Sep 6',mi:52,long:'20mi w/ last 12mi @ 6:45',quality:'10×1mi @ 6:25 pace',easy:'13mi Easy · 7mi Easy + strides'},
+  {wk:'W25',date:'Sep 13',mi:44,long:'18mi w/ 10mi @ 6:50 MGP',quality:'8mi Tempo @ 7:00/mi',easy:'11mi Easy · 6mi Easy + strides'},
+  {wk:'W26',date:'Sep 20',mi:35,long:'14mi w/ 6mi @ 6:52 – taper',quality:'6×0.5mi @ 6:10 – taper',easy:'9mi Easy · 5mi Easy + strides'},
+  {wk:'W27',date:'Sep 27',mi:24,long:'8mi Easy – feel fresh',quality:'4×1mi @ 6:40 – sharpener',easy:'6mi Easy · 4mi Easy + strides'},
+  {wk:'W28',date:'Oct 4',mi:15,long:'RACE DAY – Oct 11 🏙️',quality:'3mi Easy + strides',easy:'4mi Easy'},
+];
+
+const RACE_DATE = new Date('2026-10-11');
+const MONTHS = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+
+let runs = JSON.parse(localStorage.getItem('chi_marathon_runs') || '[]');
+let selectedFeel = '';
+let planChartObj = null, runChartObj = null;
+
+document.getElementById('run-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('run-dist').addEventListener('input', calcPace);
+document.getElementById('run-time').addEventListener('input', calcPace);
+
+function switchTab(name) {
+  const names = ['dashboard','log','plan','history'];
+  names.forEach((t,i) => {
+    document.querySelectorAll('.tab')[i].classList.toggle('active', t===name);
+    document.getElementById('page-'+t).classList.toggle('active', t===name);
+  });
+  if(name==='dashboard') updateDashboard();
+  if(name==='plan') renderPlan();
+  if(name==='history') renderHistory();
+}
+
+function selectFeel(el, val) {
+  document.querySelectorAll('.feel-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedFeel = val;
+}
+
+function calcPace() {
+  const d = parseFloat(document.getElementById('run-dist').value);
+  const t = parseFloat(document.getElementById('run-time').value);
+  if(d>0 && t>0) {
+    const pm = Math.floor(t/d), ps = Math.round((t/d - Math.floor(t/d))*60);
+    document.getElementById('run-pace').value = pm+':'+String(ps).padStart(2,'0')+' /mi';
+  } else document.getElementById('run-pace').value = '—';
+}
+
+function logRun() {
+  const dist = parseFloat(document.getElementById('run-dist').value);
+  const time = parseFloat(document.getElementById('run-time').value);
+  const date = document.getElementById('run-date').value;
+  const msg = document.getElementById('log-msg');
+  if(!dist || !date) { msg.textContent = 'Please enter a date and distance.'; return; }
+  const pm = (time && dist) ? Math.floor(time/dist) : null;
+  const ps = (time && dist) ? Math.round((time/dist - Math.floor(time/dist))*60) : null;
+  runs.push({ date, dist, time: time||null, pace: pm!==null ? pm+':'+String(ps).padStart(2,'0') : null, feel: selectedFeel });
+  runs.sort((a,b) => a.date.localeCompare(b.date));
+  localStorage.setItem('chi_marathon_runs', JSON.stringify(runs));
+  msg.textContent = '✓ Run saved!';
+  document.getElementById('run-dist').value = '';
+  document.getElementById('run-time').value = '';
+  document.getElementById('run-pace').value = '—';
+  document.querySelectorAll('.feel-btn').forEach(b => b.classList.remove('selected'));
+  selectedFeel = '';
+  setTimeout(() => { msg.textContent = ''; }, 2500);
+  updateDashboard();
+}
+
+function getCurrentWeek() {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const weeks = PLAN.filter(p => p.wk);
+  let current = weeks[0];
+  for(let i=0; i<weeks.length; i++) {
+    const parts = weeks[i].date.split(' ');
+    const d = new Date(2026, MONTHS[parts[0]], parseInt(parts[1]));
+    if(today >= d) current = weeks[i];
+  }
+  return current;
+}
+
+function updateDashboard() {
+  const diff = Math.ceil((RACE_DATE - new Date()) / 86400000);
+  document.getElementById('h-days').textContent = diff > 0 ? diff : '!';
+
+  const total = runs.reduce((s,r) => s+r.dist, 0);
+  document.getElementById('m-miles').textContent = total.toFixed(1);
+  document.getElementById('m-runs').textContent = runs.length;
+
+  const cw = getCurrentWeek();
+  document.getElementById('m-week').textContent = cw ? cw.wk : '—';
+
+  const pct = Math.min(total/26.2*100, 100);
+  document.getElementById('prog-fill').style.width = pct.toFixed(1)+'%';
+  document.getElementById('prog-label').textContent = total.toFixed(1)+' / 26.2 mi';
+  document.getElementById('prog-pct').textContent = pct.toFixed(0)+'%';
+
+  if(cw) {
+    document.getElementById('tw-label').textContent = cw.wk+' · Week of '+cw.date;
+    document.getElementById('tw-miles').textContent = cw.mi;
+    document.getElementById('tw-sessions').innerHTML = `
+      <div class="session-row"><div class="session-dot"></div><div>${cw.long}</div></div>
+      <div class="session-row"><div class="session-dot"></div><div>${cw.quality}</div></div>
+      <div class="session-row"><div class="session-dot muted"></div><div style="color:var(--muted)">${cw.easy}</div></div>
+    `;
+  }
+
+  renderPlanChart();
+  renderRunChart();
+}
+
+function renderPlanChart() {
+  const weeks = PLAN.filter(p => p.wk);
+  const canvas = document.getElementById('planChart');
+  if(planChartObj) planChartObj.destroy();
+  planChartObj = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: weeks.map(w => w.wk),
+      datasets: [{ data: weeks.map(w => w.mi), backgroundColor: 'rgba(200,245,90,0.25)', borderColor: '#C8F55A', borderWidth: 1, borderRadius: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 9, family: 'DM Mono' }, color: '#666', maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { font: { size: 9 }, color: '#666' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderRunChart() {
+  const wrap = document.getElementById('run-chart-wrap');
+  const empty = document.getElementById('run-chart-empty');
+  if(runs.length === 0) { wrap.style.display='none'; empty.style.display='block'; return; }
+  wrap.style.display='block'; empty.style.display='none';
+  const canvas = document.getElementById('runChart');
+  if(runChartObj) runChartObj.destroy();
+  runChartObj = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: runs.map(r => { const d=new Date(r.date); return (d.getMonth()+1)+'/'+(d.getDate()+1); }),
+      datasets: [{ data: runs.map(r => r.dist), backgroundColor: 'rgba(90,180,255,0.3)', borderColor: '#5ab4ff', borderWidth: 1, borderRadius: 3 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 9, family: 'DM Mono' }, color: '#666' } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { font: { size: 9 }, color: '#666' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function renderPlan() {
+  const cw = getCurrentWeek();
+  document.getElementById('plan-list').innerHTML = PLAN.map(p => {
+    if(p.phase) return `<div class="phase-header">${p.phase}</div>`;
+    const isCurrent = cw && p.wk === cw.wk;
+    return `<div class="week-row${isCurrent?' current-week':''}">
+      <span class="wk-num">${p.wk}</span>
+      <span class="wk-date">${p.date}</span>
+      <span class="wk-mi">${p.mi}mi</span>
+      <span class="wk-desc">${p.long}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if(runs.length===0) { el.innerHTML='<div class="empty-state"><div class="empty-icon">🏃</div><div>No runs logged yet</div></div>'; return; }
+  el.innerHTML = [...runs].reverse().map(r => `
+    <div class="run-item">
+      <div>
+        <div class="run-dist">${r.dist.toFixed(1)} mi</div>
+        <div class="run-sub">${r.pace ? r.pace+' /mi' : ''}${r.time ? ' · '+r.time+' min' : ''}</div>
+        ${r.feel ? `<div class="feel-tag ${r.feel}">${r.feel}</div>` : ''}
+      </div>
+      <div class="run-right">
+        <div class="run-date">${new Date(r.date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+updateDashboard();
+</script>
+</body>
+</html>
